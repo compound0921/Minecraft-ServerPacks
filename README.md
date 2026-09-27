@@ -46,12 +46,14 @@ Java 版本必须和该包要求的版本一致（两包不同，见各自的 RE
 三个目录各司其职：**`packs/` 是你编辑的，`build/` 是中间产物，`dist/` 是发布件。**
 
 ```
-shared/              两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
-packs/<版本>/         该版本特有的源文件：variables.txt、server.properties、config/、mods/、world/ ……
-build/<版本>/         组装出的可运行服务端目录，含 libraries/ 等依赖（不进版本控制，可直接跑）
-dist/                打包好的 zip（不进版本控制）
-build.sh             组装 + 打包
-tools/zip.py         压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
+shared/                    两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
+shared/defaults/           补齐用的默认文件：eula.txt、server.properties
+packs/<版本>/               该版本特有的源文件：variables.txt、server.properties、config/、mods/、world/ ……
+build/<版本>/               组装出的可运行服务端目录，含 libraries/ 等依赖（不进版本控制，可直接跑）
+dist/                      打包好的 zip（不进版本控制）
+build.sh                   整理源目录 + 组装 + 打包
+tools/import.py            把 ServerPackCreator 的原始输出整理成精简源目录
+tools/zip.py               压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
 ```
 
 `build/` 和 `dist/` 都在 `.gitignore` 里，仓库只跟踪 `packs/` 与 `shared/` 下的源文件。
@@ -84,14 +86,32 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 包约 123–137 MB。GitHub Release 单个附件上限 2 GB，容量不是限制；但**别用浏览器传**，
 大文件容易超时，用 GitHub Desktop 或 HTTP API 更稳。
 
-## 新增一个版本
+## 新增 / 更新一个版本
 
-1. 在 `packs/<新版本>/` 放该版本特有的源文件（`variables.txt`、`server.properties`、`config/`、`mods/` 等）
-2. 别把 ServerPackCreator 输出里的**客户端实例目录**（以整合包名命名的子文件夹）带进来
-3. 把新版本的 `start.*`、`install_java.*` 与 `shared/` 里的对比一下：**一致就删掉**，
-   不一致则先更新 `shared/`（所有版本共用一份，改动会影响全部）
-4. 首次构建前，先跑一次 start 脚本把依赖下载到 `build/<新版本>/`
-5. `./build.sh <新版本>` —— `build.sh` 会自动发现 `packs/` 下的新目录，不需要改脚本
+**把 ServerPackCreator 的原始输出整个丢进 `packs/<版本>/` 就行**，不用手动挑文件：
+
+```bash
+cp -r <SPC输出目录>/. packs/<版本>/
+./build.sh <版本>
+```
+
+`build.sh` 会先调 `tools/import.py` 把源目录整理干净：
+
+- 删掉客户端实例目录（SPC 顺带拷进来的，靠 `.hmcl` / `natives-*` / `saves` 等标志识别）
+- 删掉 `manifest.json`
+- 把运行产生的 `libraries/` `versions/` `.fabric/` `server.jar` 等**移到** `build/<版本>/`
+- 删掉与 `shared/` 内容相同的 `start.*` / `install_java.*`（构建时自动从 `shared/` 复制）；
+  内容不同则保留并警告，提示先更新 `shared/`
+- 清掉 SPC 写下的只读属性，否则你改不了 `variables.txt`
+
+然后补齐缺失的 `eula.txt`（`eula=true`）、`server.properties`（`online-mode=false`）
+和 `README.md`（按 `variables.txt` 里的版本信息生成）。
+
+> 整理只针对能明确识别的目标；遇到不认识的文件或目录一律保留并打印警告。
+
+如果提示缺 `libraries/`，说明这个版本还没下载过依赖：进 `build/<版本>/` 跑一次 start 脚本
+把依赖下齐，再重新 `./build.sh <版本>` 即可打出完整包。已下载的依赖会一直留在 `build/` 里，
+之后重复构建不会重新下载。
 
 ## 重新生成
 
