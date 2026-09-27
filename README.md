@@ -2,7 +2,11 @@
 
 Minecraft 服务端整合包，由 [ServerPackCreator](https://github.com/Griefed/ServerPackCreator) `8.1.2` 生成。
 
-本仓库只保留启动服务端所需的文件（ServerPackCreator 原本一并打包的 HMCL 客户端实例已移除）。**每个包的具体配置和说明见各自的 README。**
+## 下载
+
+**本仓库不含可直接运行的完整服务端包**，请到 [Releases](../../releases) 页面下载对应版本的 zip，解压即用。完整包已自带全部依赖，无需联网安装。
+
+各版本的 Java 要求、配置说明见包内的 `README.md`。
 
 ## 启动
 
@@ -31,8 +35,58 @@ Java 版本必须和该包要求的版本一致（两包不同，见各自的 RE
 改 `server.properties` 的 `server-port`。
 
 **首次启动卡在下载 / 安装**
-Forge 包首次启动会通过 ServerStarterJar 安装依赖，需要联网，耐心等待或看 `logs/latest.log`。
+如果用的不是 Release 里的完整包，Forge 包首次启动会通过 ServerStarterJar 安装依赖，需要联网，耐心等待或看 `logs/latest.log`。
+
+---
+
+# 维护说明
+
+## 目录结构
+
+```
+shared/                 两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
+packs/<版本>/            该版本特有的源文件：variables.txt、server.properties、config/、mods/、world/ ……
+packs/<版本>/<版本>-ServerPack/   构建输出（不进版本控制）
+build.sh                组装 + 打包
+tools/zip.py            压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
+dist/                   产出的 zip（不进版本控制）
+```
+
+## 为什么不把库文件放进仓库
+
+`libraries/`、`versions/`、`.fabric/`、`server.jar` 等加起来约 290 MB，但**全部是 start 脚本运行时从
+Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它们提交进 git 只会让仓库膨胀到几百 MB、
+拖慢每次 push 和 clone，并不增加任何信息。仓库里真正需要维护的内容只有约 0.3 MB。
+
+## 构建
+
+```bash
+./build.sh                  # 构建全部
+./build.sh 1.20.1-Forge     # 只构建指定包
+./build.sh --list           # 列出所有包
+```
+
+脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的版本文件组装进
+`packs/<版本>/<版本>-ServerPack/`，再打包到 `dist/`。
+
+> 首次在一台新机器上构建前，要先在该目录跑一次 start 脚本，把 `libraries/` 等依赖下载齐，
+> 否则打出来的包不含依赖。脚本会检测并警告。
+
+## 发布
+
+1. 跑 `./build.sh`
+2. 到 GitHub 新建 Release，把 `dist/*.zip` 拖上去
+
+包约 123–137 MB。GitHub Release 单个附件上限 2 GB，容量不是限制；但**别用浏览器传**，
+大文件容易超时，用 GitHub Desktop 或 HTTP API 更稳。
+
+## 新增一个版本
+
+1. 把 ServerPackCreator 的产出放进 `packs/<新版本>/`
+2. 其中 `start.*`、`install_java.*` 与 `shared/` 里的对比一下：**一致就删掉**，不一致则先更新 `shared/`（两包共用一份，改动会影响所有版本）
+3. `build.sh` 不需要改，会自动发现新目录
 
 ## 重新生成
 
-修改客户端整合包后，用 ServerPackCreator `8.1.2` 重新生成服务端包。`variables.txt` 和 `.previousrun` 记录了上次生成时的版本信息，供其比对。
+修改客户端整合包后，用 ServerPackCreator `8.1.2` 重新生成服务端包。`variables.txt` 和 `.previousrun`
+记录了上次生成时的版本信息，供其比对。

@@ -1,0 +1,10 @@
+* text=auto
+
+# Linux/macOS 玩家要能直接执行 ./start.sh，必须保证 LF。
+# core.autocrlf=true 在 Windows 上会把 .sh 检出成 CRLF，导致
+# "bad interpreter: /usr/bin/env bash^M"。
+*.sh   text eol=lf
+*.bat  text eol=crlf
+
+*.jar  binary
+*.zip  binary
