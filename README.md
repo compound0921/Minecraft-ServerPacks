@@ -88,7 +88,7 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 
 ## 新增 / 更新一个版本
 
-**把 ServerPackCreator 的原始输出整个丢进 `packs/<版本>/` 就行**，不用手动挑文件：
+**把 ServerPackCreator(SPC) 的原始输出整个丢进 `packs/<版本>/` 就行**，不用手动挑文件：
 
 ```bash
 cp -r <SPC输出目录>/. packs/<版本>/
