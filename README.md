@@ -43,14 +43,18 @@ Java 版本必须和该包要求的版本一致（两包不同，见各自的 RE
 
 ## 目录结构
 
+三个目录各司其职：**`packs/` 是你编辑的，`build/` 是中间产物，`dist/` 是发布件。**
+
 ```
-shared/                 两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
-packs/<版本>/            该版本特有的源文件：variables.txt、server.properties、config/、mods/、world/ ……
-packs/<版本>/<版本>-ServerPack/   构建输出（不进版本控制）
-build.sh                组装 + 打包
-tools/zip.py            压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
-dist/                   产出的 zip（不进版本控制）
+shared/              两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
+packs/<版本>/         该版本特有的源文件：variables.txt、server.properties、config/、mods/、world/ ……
+build/<版本>/         组装出的可运行服务端目录，含 libraries/ 等依赖（不进版本控制，可直接跑）
+dist/                打包好的 zip（不进版本控制）
+build.sh             组装 + 打包
+tools/zip.py         压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
 ```
+
+`build/` 和 `dist/` 都在 `.gitignore` 里，仓库只跟踪 `packs/` 与 `shared/` 下的源文件。
 
 ## 为什么不把库文件放进仓库
 
@@ -66,11 +70,11 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 ./build.sh --list           # 列出所有包
 ```
 
-脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的版本文件组装进
-`packs/<版本>/<版本>-ServerPack/`，再打包到 `dist/`。
+脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的版本文件组装进 `build/<版本>/`，
+再打包到 `dist/`。已下载的依赖原样保留在 `build/` 里，重复构建不会重新下载。
 
-> 首次在一台新机器上构建前，要先在该目录跑一次 start 脚本，把 `libraries/` 等依赖下载齐，
-> 否则打出来的包不含依赖。脚本会检测并警告。
+> 首次在一台新机器上构建某个版本前，要先在 `build/<版本>/` 里跑一次 start 脚本，
+> 把 `libraries/` 等依赖下载齐，否则打出来的包不含依赖。脚本会检测并警告。
 
 ## 发布
 
@@ -82,9 +86,12 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 
 ## 新增一个版本
 
-1. 把 ServerPackCreator 的产出放进 `packs/<新版本>/`
-2. 其中 `start.*`、`install_java.*` 与 `shared/` 里的对比一下：**一致就删掉**，不一致则先更新 `shared/`（两包共用一份，改动会影响所有版本）
-3. `build.sh` 不需要改，会自动发现新目录
+1. 在 `packs/<新版本>/` 放该版本特有的源文件（`variables.txt`、`server.properties`、`config/`、`mods/` 等）
+2. 别把 ServerPackCreator 输出里的**客户端实例目录**（以整合包名命名的子文件夹）带进来
+3. 把新版本的 `start.*`、`install_java.*` 与 `shared/` 里的对比一下：**一致就删掉**，
+   不一致则先更新 `shared/`（所有版本共用一份，改动会影响全部）
+4. 首次构建前，先跑一次 start 脚本把依赖下载到 `build/<新版本>/`
+5. `./build.sh <新版本>` —— `build.sh` 会自动发现 `packs/` 下的新目录，不需要改脚本
 
 ## 重新生成
 

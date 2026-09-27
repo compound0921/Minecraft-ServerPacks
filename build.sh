@@ -9,17 +9,22 @@
 # 产出的 zip 在 dist/ 下，直接拖到 GitHub Release 页面即可。
 #
 # 组装规则：shared/ 的公共脚本 + packs/<版本>/ 的版本特有文件
-#          -> packs/<版本>/<版本>-ServerPack/  -> dist/<版本>-ServerPack.zip
+#          -> build/<版本>/  -> dist/<版本>-ServerPack.zip
 #
-# 注意：packs/<版本>/<版本>-ServerPack/ 是构建输出，不进版本控制。
-# 首次在这台机器上构建前，需要先跑一次 start 脚本让它把 libraries/ 等
-# 依赖下载齐，否则打出来的包不含依赖（下面会警告）。
+# 三个目录各司其职：
+#   packs/  你要编辑的源文件（进版本控制）
+#   build/  组装出的可运行服务端目录（不进版本控制，可直接跑起来测试）
+#   dist/   打包好的成品 zip（不进版本控制）
+#
+# 首次在一台新机器上构建某个版本前，需要先跑一次 start 脚本让它把
+# libraries/ 等依赖下载齐，否则打出来的包不含依赖（下面会警告）。
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED="$ROOT/shared"
 PACKS="$ROOT/packs"
+BUILD="$ROOT/build"
 DIST="$ROOT/dist"
 
 # 从 shared/ 和 packs/<p>/ 复制到构建输出目录的源文件
@@ -52,7 +57,7 @@ mkdir -p "$DIST"
 
 for name in $(pack_names "$@"); do
   src="$PACKS/$name"
-  out="$src/$name-ServerPack"
+  out="$BUILD/$name"
 
   if [ ! -d "$src" ]; then
     echo "错误: 未知的包 '$name'，可用: $(pack_names | tr '\n' ' ')" >&2
@@ -79,7 +84,6 @@ for name in $(pack_names "$@"); do
   for d in "${PACK_DIRS[@]}"; do
     if [ -d "$src/$d" ]; then
       mkdir -p "$out/$d"
-      # .gitkeep 只是占位，不进发布包
       # .gitkeep 只是占位，不进发布包；空目录则由 zip.py 写入目录条目保留
       find "$src/$d" -mindepth 1 -maxdepth 1 ! -name .gitkeep \
         -exec cp -rf {} "$out/$d/" \;
@@ -92,8 +96,11 @@ for name in $(pack_names "$@"); do
     echo "          请先在该目录跑一次 start 脚本把依赖下载齐。" >&2
   fi
 
-  # 4. 打包（Windows 终端默认 GBK，强制 UTF-8 免乱码）
-  PYTHONIOENCODING=utf-8 python "$ROOT/tools/zip.py" "$out" "$DIST/$name-ServerPack.zip"
+  # 4. 打包（Windows 终端默认 GBK，强制 UTF-8 免乱码）。
+  #    构建目录是 build/1.20.1-Forge，但解压后希望得到 1.20.1-Forge-ServerPack/，
+  #    所以显式传入压缩包内的顶层目录名。
+  PYTHONIOENCODING=utf-8 python "$ROOT/tools/zip.py" \
+    "$out" "$DIST/$name-ServerPack.zip" "$name-ServerPack"
 done
 
 echo "完成。产物在 $DIST/"

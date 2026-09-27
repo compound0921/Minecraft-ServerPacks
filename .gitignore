@@ -1,9 +1,9 @@
-# 构建输出目录：服务端包成品，目录名固定以 -ServerPack 结尾。
+# 构建输出：build.sh 组装出的可运行服务端目录。
 # 其中 libraries/ versions/ .fabric/ *.jar 等均由 start 脚本运行时自动下载，
 # 不进版本控制（详见 README）。
-packs/*/*-ServerPack/
+build/
 
-# 构建产物汇总目录（build.sh 产出的 zip）
+# 打包好的成品 zip
 dist/
 
 # 兜底：若日后有包直接放在仓库根目录，同样排除这些产物
