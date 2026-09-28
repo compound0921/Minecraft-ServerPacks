@@ -6,12 +6,10 @@ build/
 # 打包好的成品 zip
 dist/
 
-# packs/<包名>/ 下除 variables.txt 外都不进版本控制：HOW-TO-RUN.md、config/、
-# mods/、world/ 等是 ServerPackCreator 的输出，eula.txt、server.properties、
-# README.md 则由 build.sh 运行时从 shared/defaults/ 补出来，都能重新生成。
-# variables.txt 必须留着 —— 它是 SPC 的产物而 fill_defaults 不补，删了就构建不了。
+# packs/<包名>/ 下一个文件都不进版本控制：内容全部来自 ServerPackCreator 的原始输出
+# （构建前现拷进去），或由 build.sh 运行时从 shared/defaults/ 补出来。
+# packs/.gitkeep 只占住 packs/ 这个目录本身，不在本规则范围内。
 packs/*/*
-!packs/*/variables.txt
 
 # 兜底：若日后有包直接放在仓库根目录，同样排除这些产物
 /libraries/

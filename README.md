@@ -43,13 +43,13 @@ Java 版本必须和该包要求的版本一致（两包不同，见各自的 RE
 
 ## 目录结构
 
-三个目录各司其职：**`packs/` 是你编辑的，`build/` 是中间产物，`dist/` 是发布件。**
+三个目录各司其职：**`packs/` 是构建前现拷进来的原料，`build/` 是中间产物，`dist/` 是发布件。**
 
 ```
 shared/                    两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
 shared/defaults/           补齐用的默认文件：eula.txt、server.properties
-packs/<版本>/               该版本特有的源文件。仓库只跟踪 variables.txt，
-                            其余（SPC 输出、build.sh 补出的默认文件）由 .gitignore 排除
+packs/                     仓库里是空的（只有 .gitkeep 占位）。构建前把 SPC 原始输出
+                           拷进 packs/<版本>/，整棵子树都不进版本控制
 build/<版本>/               组装出的可运行服务端目录，含 libraries/ 等依赖（不进版本控制，可直接跑）
 dist/                      打包好的 zip（不进版本控制）
 build.sh                   整理源目录 + 组装 + 打包
@@ -57,13 +57,12 @@ tools/import.py            把 ServerPackCreator 的原始输出整理成精简�
 tools/zip.py               压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
 ```
 
-`build/`、`dist/`，以及 `packs/<版本>/` 下除 `variables.txt` 外的内容都在 `.gitignore` 里。
-仓库真正跟踪的只有 `shared/` 和两个 `variables.txt`。
+`packs/`、`build/`、`dist/` 全在 `.gitignore` 里，仓库真正跟踪的只有 `shared/`。
 
-`packs/<版本>/` 里其余的东西都不必提交：`HOW-TO-RUN.md`、`config/`、`mods/`、`world/` 等是
-ServerPackCreator 的输出，`eula.txt`、`server.properties`、`README.md` 由 `build.sh` 运行时从
-`shared/defaults/` 补出来，都能重新生成。**`variables.txt` 是例外**——它也是 SPC 的产物，
-但 `fill_defaults` 不补它，删了就构建不了（`build.sh` 会直接报错），所以必须留在仓库里。
+`packs/<版本>/` 下的东西**一个都不提交**，因为全都能重新生成：`HOW-TO-RUN.md`、`config/`、
+`mods/`、`world/` 是 ServerPackCreator 的输出，`eula.txt`、`server.properties`、`README.md`
+由 `build.sh` 运行时从 `shared/defaults/` 补出来。**代价是 `packs/` 里的内容不受版本控制，
+所以 `variables.txt` 必须由 SPC 保证正确** —— 见下面「新增 / 更新一个版本」一节。
 
 ## 为什么不把库文件放进仓库
 
@@ -74,15 +73,16 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 ## 构建
 
 ```bash
-./build.sh                  # 构建全部
+./build.sh                  # 构建 packs/ 下的全部包
 ./build.sh 1.20.1-Forge     # 只构建指定包
-./build.sh --list           # 列出所有包
+./build.sh --list           # 列出 packs/ 下的所有包
 ```
 
-脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的版本文件组装进 `build/<版本>/`，
+脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的文件组装进 `build/<版本>/`，
 再打包到 `dist/`。已下载的依赖原样保留在 `build/` 里，重复构建不会重新下载。
 
 缺少 `variables.txt` / `eula.txt` / `server.properties` 会直接报错中止，不产 zip。
+`packs/` 里一个包都没有时同样报错，不会默默什么都不做。
 
 > 首次在一台新机器上构建某个版本前，要先在 `build/<版本>/` 里跑一次 start 脚本，
 > 把 `libraries/` 等依赖下载齐，否则打出来的包不含依赖。脚本会检测并警告。
@@ -97,9 +97,11 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 
 ## 新增 / 更新一个版本
 
-**把 ServerPackCreator(SPC) 的原始输出整个丢进 `packs/<版本>/` 就行**，不用手动挑文件：
+**仓库里不存 `packs/` 的内容，每次构建前把 ServerPackCreator(SPC) 的原始输出现拷进去**，
+不用手动挑文件：
 
 ```bash
+mkdir -p packs/<版本>
 cp -r <SPC输出目录>/. packs/<版本>/
 ./build.sh <版本>
 ```
@@ -107,6 +109,12 @@ cp -r <SPC输出目录>/. packs/<版本>/
 > ⚠️ **`packs/<版本>/` 这一层不能少。** 如果直接倒进 `packs/`，`variables.txt`、
 > `HOW-TO-RUN.md` 这些文件会停在 `packs/` 根目录，而 `build.sh` 只从 `packs/<版本>/`
 > 取文件——旧版本会照常打出一个 zip，只是里面缺 `variables.txt`。现在这种情况会直接报错中止。
+
+> ⚠️ **别在 `packs/<版本>/variables.txt` 里留下机器相关的改动。** 它不进版本控制，
+> 也没人替你校对，SPC 每次重新生成都会写回 `JAVA="java"` + `SKIP_JAVA_CHECK=false`。
+> 如果你为了本机调试把它改成绝对路径（如 `JAVA="D\:\\...\\java.exe"`）并打开了
+> `SKIP_JAVA_CHECK`，**打包前务必改回来**——否则玩家机器上没有这个路径，`start.sh`
+> 会直接失败，而自动装 Java 的兜底又被你自己关掉了。
 
 `build.sh` 会先调 `tools/import.py` 把源目录整理干净：
 

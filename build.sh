@@ -9,13 +9,19 @@
 # 产出的 zip 在 dist/ 下，直接拖到 GitHub Release 页面即可。
 #
 # 三个目录各司其职：
-#   packs/  你要编辑的源文件（进版本控制）
+#   packs/  构建前从 ServerPackCreator 原始输出现拷进来的源目录（不进版本控制）
 #   build/  组装出的可运行服务端目录（不进版本控制，可直接跑起来测试）
 #   dist/   打包好的成品 zip（不进版本控制）
 #
-# 可以直接把 ServerPackCreator 的原始输出整个丢进 packs/<包名>/，再跑本脚本：
-# 它会先调 tools/import.py 删掉客户端实例目录和 manifest.json、把运行产物移到
-# build/，再补齐缺失的 eula.txt / server.properties / README.md。
+# packs/ 在仓库里是空的（只有个 .gitkeep 占位），所以每个包构建前都要先把
+# SPC 的原始输出整个拷进 packs/<包名>/：
+#
+#   mkdir -p packs/<包名> && cp -r <SPC输出目录>/. packs/<包名>/
+#   ./build.sh <包名>
+#
+# 本脚本会先调 tools/import.py 删掉客户端实例目录和 manifest.json、把运行产物
+# 移到 build/，再补齐缺失的 eula.txt / server.properties / README.md。源目录里
+# 没有 variables.txt（也就是忘了拷 SPC 输出）会直接报错中止。
 #
 # 首次在一台新机器上构建某个版本前，需要先跑一次 start 脚本让它把
 # libraries/ 等依赖下载齐，否则打出来的包不含依赖（下面会警告）。
@@ -37,11 +43,17 @@ PACK_FILES=(
 )
 PACK_DIRS=(config defaultconfigs mods world)
 
+# 列出要构建的包名，一行一个。packs/ 里没有包时输出为空。
 pack_names() {
   if [ "$#" -gt 0 ]; then
     printf '%s\n' "$@"
   else
-    for d in "$PACKS"/*/; do basename "$d"; done
+    # [ -d ] 这一步是必需的：packs/ 为空时 "$PACKS"/*/ 不匹配，会原样保留
+    # 通配符本身，于是 d 变成字面量 ".../packs/*/"，basename 出来是个 "*"。
+    for d in "$PACKS"/*/; do
+      [ -d "$d" ] || continue
+      basename "$d"
+    done
   fi
 }
 
@@ -98,9 +110,20 @@ if [ ! -d "$SHARED" ]; then
   exit 1
 fi
 
+# packs/ 里一个包都没有：刚克隆下来、或还没把 SPC 输出拷进来。
+# 单独拦这一句是因为不拦的话下面循环一次都不跑，脚本会若无其事地报"完成"。
+if [ -z "$(pack_names "$@")" ]; then
+  echo "错误: packs/ 里没有任何包。" >&2
+  echo "      把 ServerPackCreator 的原始输出拷进来再构建：" >&2
+  echo "        mkdir -p packs/<包名> && cp -r <SPC输出目录>/. packs/<包名>/" >&2
+  exit 1
+fi
+
 mkdir -p "$DIST"
 
-for name in $(pack_names "$@"); do
+# 用 while read 而不是 for $(...)：未加引号的命令替换会做路径展开，
+# 包名里带 * 或空格时会被拆散甚至展开成当前目录的文件列表。
+while IFS= read -r name; do
   src="$PACKS/$name"
   out="$BUILD/$name"
 
@@ -153,8 +176,9 @@ for name in $(pack_names "$@"); do
   done
   if [ -n "$missing" ]; then
     echo "错误: packs/$name 缺少必需文件:$missing" >&2
-    echo "      检查 packs/$name/ 是否完整 —— SPC 的原始输出要整个拷进 packs/$name/，" >&2
-    echo "      而不是 packs/ 根目录（那样这些文件不会被取用）。" >&2
+    echo "      packs/ 里不存这些东西，构建前要把 SPC 的原始输出整个拷进 packs/$name/：" >&2
+    echo "        mkdir -p packs/$name && cp -r <SPC输出目录>/. packs/$name/" >&2
+    echo "      （注意是拷进 packs/$name/，不是 packs/ 根目录 —— 放错层级不会被取用）" >&2
     exit 1
   fi
 
@@ -169,6 +193,6 @@ for name in $(pack_names "$@"); do
   #    所以显式传入压缩包内的顶层目录名。
   PYTHONIOENCODING=utf-8 python "$ROOT/tools/zip.py" \
     "$out" "$DIST/$name-ServerPack.zip" "$name-ServerPack"
-done
+done < <(pack_names "$@")
 
 echo "完成。产物在 $DIST/"
