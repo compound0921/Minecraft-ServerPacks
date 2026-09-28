@@ -14,8 +14,24 @@ import sys
 import zipfile
 
 # 不该进发布包的文件（每台机器各自生成）
-SKIP_FILES = {".previousrun"}
-SKIP_DIRS = {".git"}
+SKIP_FILES = {
+    ".previousrun",
+    # Forge: ServerStarterJar，start 脚本按 SERVERSTARTERJAR_VERSION 重新下载
+    "server.jar",
+    # Fabric: 服务端启动器
+    "fabric-server-launcher.jar",
+    "fabric-server-launch.jar",
+    # Forge 安装时生成，内容硬引用 libraries/，剥掉依赖后留着是坏的
+    "run.sh",
+    "run.bat",
+    "user_jvm_args.txt",
+}
+
+# 运行时由 start 脚本从 Mojang / Forge / Fabric 官方源下载的依赖，不进发布包：
+# 发布包保持轻量（几十 KB），玩家首次启动时脚本自己把这些拉下来。
+# build/ 同时兼作本机测试目录，里面通常已经下好了依赖，不排掉就会把
+# 几百 MB 一起打进 zip —— 这正是发布包变胖的唯一来源。
+SKIP_DIRS = {".git", "libraries", "versions", ".fabric"}
 
 
 def main() -> int:
