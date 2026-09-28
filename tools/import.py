@@ -5,6 +5,8 @@
     python tools/import.py <仓库根> <包名>
 
 做的事:
+  0. 先确认 SPC 的原始输出没被倒进 packs/ 根目录（放错了会静默打出缺文件的包），
+     是则报错退出
   1. 删掉 manifest.json（SPC 的元数据，服务端用不到）
   2. 删掉客户端实例目录（SPC 顺带拷进来的，带 .hmcl / natives-* / saves 等标志）
   3. 把运行产生的构建产物（libraries/ versions/ .fabric/ server.jar run.sh …）
@@ -42,6 +44,15 @@ CLIENT_MARKERS = {
     "resourcepacks", "schematics",
 }
 CLIENT_MARKER_PREFIXES = ("natives-",)
+
+# packs/ 根目录上不该出现的文件：出现即说明 SPC 的原始输出被倒进了 packs/，
+# 而不是 packs/<包名>/。这个错误是静默的 —— 这些文件根本不在 build.sh 的取用
+# 范围内，包会照打不误，只是缺 variables.txt 等一堆文件，所以必须在这里拦下。
+SPC_OUTPUT_MARKERS = {
+    "manifest.json", "variables.txt", "server.properties", "eula.txt",
+    "HOW-TO-RUN.md", "start.sh", "start.bat", "start.ps1",
+    "install_java.sh", "install_java.ps1", "user_jvm_args.txt",
+}
 
 
 def make_writable(path: str) -> None:
@@ -123,9 +134,23 @@ def main() -> int:
         print(__doc__, file=sys.stderr)
         return 2
     root, name = os.path.abspath(sys.argv[1]), sys.argv[2]
-    pack = os.path.join(root, "packs", name)
+    packs = os.path.join(root, "packs")
+    pack = os.path.join(packs, name)
     build = os.path.join(root, "build", name)
     shared = os.path.join(root, "shared")
+
+    # 0. SPC 的原始输出得整个拷进 packs/<包名>/，不是 packs/。放错层级时那些文件
+    #    不会被 build.sh 取用，会打出一个缺 variables.txt 的包，所以直接中止。
+    stray = sorted(m for m in os.listdir(packs) if m in SPC_OUTPUT_MARKERS)
+    if stray:
+        print("错误: packs/ 根目录出现了 ServerPackCreator 的输出文件:", file=sys.stderr)
+        for m in stray:
+            print(f"        packs/{m}", file=sys.stderr)
+        print("      这些文件不在 build.sh 的取用范围内，会被忽略，"
+              "打出的包会缺 variables.txt 等文件。", file=sys.stderr)
+        print("      正确做法是把 SPC 输出整个拷进包目录：", file=sys.stderr)
+        print("        cp -r <SPC输出目录>/. packs/<包名>/", file=sys.stderr)
+        return 1
 
     if not os.path.isdir(pack):
         print(f"错误: 找不到 {pack}", file=sys.stderr)

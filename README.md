@@ -75,6 +75,8 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的版本文件组装进 `build/<版本>/`，
 再打包到 `dist/`。已下载的依赖原样保留在 `build/` 里，重复构建不会重新下载。
 
+缺少 `variables.txt` / `eula.txt` / `server.properties` 会直接报错中止，不产 zip。
+
 > 首次在一台新机器上构建某个版本前，要先在 `build/<版本>/` 里跑一次 start 脚本，
 > 把 `libraries/` 等依赖下载齐，否则打出来的包不含依赖。脚本会检测并警告。
 
@@ -95,8 +97,13 @@ cp -r <SPC输出目录>/. packs/<版本>/
 ./build.sh <版本>
 ```
 
+> ⚠️ **`packs/<版本>/` 这一层不能少。** 如果直接倒进 `packs/`，`variables.txt`、
+> `HOW-TO-RUN.md` 这些文件会停在 `packs/` 根目录，而 `build.sh` 只从 `packs/<版本>/`
+> 取文件——旧版本会照常打出一个 zip，只是里面缺 `variables.txt`。现在这种情况会直接报错中止。
+
 `build.sh` 会先调 `tools/import.py` 把源目录整理干净：
 
+- 确认 SPC 输出没被倒进 `packs/` 根目录（放错了直接报错中止）
 - 删掉客户端实例目录（SPC 顺带拷进来的，靠 `.hmcl` / `natives-*` / `saves` 等标志识别）
 - 删掉 `manifest.json`
 - 把运行产生的 `libraries/` `versions/` `.fabric/` `server.jar` 等**移到** `build/<版本>/`

@@ -142,13 +142,29 @@ for name in $(pack_names "$@"); do
     fi
   done
 
-  # 3. full 包自检：没有 libraries/ 说明依赖还没下载过
+  # 3. 必需文件自检：缺了就中止，绝不打出一个跑不起来的包。
+  #    variables.txt 不在 fill_defaults 的补齐范围内（它得由 SPC 提供），源目录被
+  #    搞乱时它会悄悄缺失，而打出来的 zip 单看文件名是看不出问题的。
+  #    查 $src 而不是 $out：build/ 是增量的，上次构建留下的旧文件会让 $out 上的
+  #    校验白白放过一个残源，打出的包里那份还是过期的。
+  missing=""
+  for f in variables.txt eula.txt server.properties; do
+    [ -f "$src/$f" ] || missing="$missing $f"
+  done
+  if [ -n "$missing" ]; then
+    echo "错误: packs/$name 缺少必需文件:$missing" >&2
+    echo "      检查 packs/$name/ 是否完整 —— SPC 的原始输出要整个拷进 packs/$name/，" >&2
+    echo "      而不是 packs/ 根目录（那样这些文件不会被取用）。" >&2
+    exit 1
+  fi
+
+  # 4. full 包自检：没有 libraries/ 说明依赖还没下载过
   if [ ! -d "$out/libraries" ]; then
     echo "    警告: build/$name 里没有 libraries/，打出的包不含依赖。" >&2
     echo "          请先在 build/$name 里跑一次 start 脚本把依赖下载齐。" >&2
   fi
 
-  # 4. 打包（Windows 终端默认 GBK，强制 UTF-8 免乱码）。
+  # 5. 打包（Windows 终端默认 GBK，强制 UTF-8 免乱码）。
   #    构建目录是 build/1.20.1-Forge，但解压后希望得到 1.20.1-Forge-ServerPack/，
   #    所以显式传入压缩包内的顶层目录名。
   PYTHONIOENCODING=utf-8 python "$ROOT/tools/zip.py" \
