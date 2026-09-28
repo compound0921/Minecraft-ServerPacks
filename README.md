@@ -4,7 +4,8 @@ Minecraft 服务端整合包，由 [ServerPackCreator](https://github.com/Griefe
 
 ## 下载
 
-**本仓库不含可直接运行的完整服务端包**，请到 [Releases](../../releases) 页面下载对应版本的 zip，解压即用。完整包已自带全部依赖，无需联网安装。
+**本仓库不含可直接运行的完整服务端包**，请到 [Releases](../../releases) 页面下载对应版本的 zip，
+解压即用。发布包是轻量的（约 30 KB），**不含依赖，首次启动会自动联网下载安装对应版本的 Java 和服务端依赖**。
 
 各版本的 Java 要求、配置说明见包内的 `README.md`。
 
@@ -15,12 +16,12 @@ Minecraft 服务端整合包，由 [ServerPackCreator](https://github.com/Griefe
 
 ## Java
 
-Java 版本必须和该包要求的版本一致（两包不同，见各自的 README），用错会报 `UnsupportedClassVersionError`。
+Java 版本必须和该包要求的版本一致（各包不同，见包内 `README.md`），用错会报 `UnsupportedClassVersionError`。
 
 `variables.txt` 里的 `JAVA` 决定用哪个 Java：
 
 - 值为 `java`：首次启动会自动下载安装合适的 Java 版本。
-- 值为绝对路径：强制使用该 Java。**换机器前必须改掉**，改成自己机器上的路径，或者改回 `java` 走自动安装（同时把 `SKIP_JAVA_CHECK` 改回 `false`）。
+- 值为绝对路径：强制使用该 Java。发布包里不会出现这种情况（`build.sh` 会拦），只在你手动改过之后才需要留意——**换机器前必须改掉**，改回 `java` 走自动安装（同时把 `SKIP_JAVA_CHECK` 改回 `false`）。
 
 > Windows 路径里的 `\` 和 `:` 需要转义，即前面再加一个 `\`。
 
@@ -35,7 +36,8 @@ Java 版本必须和该包要求的版本一致（两包不同，见各自的 RE
 改 `server.properties` 的 `server-port`。
 
 **首次启动卡在下载 / 安装**
-如果用的不是 Release 里的完整包，Forge 包首次启动会通过 ServerStarterJar 安装依赖，需要联网，耐心等待或看 `logs/latest.log`。
+Release 里的包不含依赖，首次启动会联网下载安装 Java 和服务端依赖（Fabric 包约 130 MB，
+Forge 包首次还要装 Forge）。进度看 `logs/latest.log`。
 
 ---
 
@@ -73,27 +75,28 @@ Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它
 ## 构建
 
 ```bash
-./build.sh                  # 构建 packs/ 下的全部包
-./build.sh 1.20.1-Forge     # 只构建指定包
-./build.sh --list           # 列出 packs/ 下的所有包
+./build.sh                     # 构建 packs/ 下的全部包
+./build.sh 1.20.1-Forge        # 只构建指定包
+./build.sh --list              # 列出 packs/ 下的所有包
+./build.sh --allow-custom-java # 跳过 variables.txt 的 Java 自检（仅供本机测试）
 ```
 
 脚本把 `shared/` 的公共脚本和 `packs/<版本>/` 的文件组装进 `build/<版本>/`，
-再打包到 `dist/`。已下载的依赖原样保留在 `build/` 里，重复构建不会重新下载。
+再打包到 `dist/`。**`libraries/` `versions/` `.fabric/` `server.jar` 这些运行时下载的依赖
+不会进包**，`build/` 里下过的依赖只是留着给你本机测试，重复构建不会重新下载。
 
-缺少 `variables.txt` / `eula.txt` / `server.properties` 会直接报错中止，不产 zip。
-`packs/` 里一个包都没有时同样报错，不会默默什么都不做。
+缺少 `variables.txt` / `eula.txt` / `server.properties`，或 `variables.txt` 里的 `JAVA` 不是 `java`
+（见下），都会直接报错中止，不产 zip。`packs/` 里一个包都没有时同样报错，不会默默什么都不做。
 
-> 首次在一台新机器上构建某个版本前，要先在 `build/<版本>/` 里跑一次 start 脚本，
-> 把 `libraries/` 等依赖下载齐，否则打出来的包不含依赖。脚本会检测并警告。
+> `build/<版本>/` 里有没有下过依赖，只影响你能不能在本机直接把它跑起来测试，不影响产物 ——
+> 依赖由 `tools/zip.py` 在打包时排除，发布包一律不含。
 
 ## 发布
 
 1. 跑 `./build.sh`
 2. 到 GitHub 新建 Release，把 `dist/*.zip` 拖上去
 
-包约 123–137 MB。GitHub Release 单个附件上限 2 GB，容量不是限制；但**别用浏览器传**，
-大文件容易超时，用 GitHub Desktop 或 HTTP API 更稳。
+包约 30 KB —— 依赖不进包，里面只有启动脚本和配置。附件很小，直接拖到网页上传即可。
 
 ## 新增 / 更新一个版本
 
@@ -112,9 +115,10 @@ cp -r <SPC输出目录>/. packs/<版本>/
 
 > ⚠️ **别在 `packs/<版本>/variables.txt` 里留下机器相关的改动。** 它不进版本控制，
 > 也没人替你校对，SPC 每次重新生成都会写回 `JAVA="java"` + `SKIP_JAVA_CHECK=false`。
-> 如果你为了本机调试把它改成绝对路径（如 `JAVA="D\:\\...\\java.exe"`）并打开了
-> `SKIP_JAVA_CHECK`，**打包前务必改回来**——否则玩家机器上没有这个路径，`start.sh`
-> 会直接失败，而自动装 Java 的兜底又被你自己关掉了。
+> 如果你为了本机调试把它改成绝对路径并打开了 `SKIP_JAVA_CHECK`，打出的包在别人机器上
+> 会直接起不来——那个路径不存在，而自动装 Java 的兜底又正好被你关掉了。
+> 现在不用靠自觉了：`build.sh` 会拦住这种情况，`JAVA` 不是 `java`，或 `SKIP_JAVA_CHECK`
+> 不是 `false`，就直接报错中止、不产 zip，除非显式加 `--allow-custom-java`。
 
 `build.sh` 会先调 `tools/import.py` 把源目录整理干净：
 
@@ -131,9 +135,8 @@ cp -r <SPC输出目录>/. packs/<版本>/
 
 > 整理只针对能明确识别的目标；遇到不认识的文件或目录一律保留并打印警告。
 
-如果提示缺 `libraries/`，说明这个版本还没下载过依赖：进 `build/<版本>/` 跑一次 start 脚本
-把依赖下齐，再重新 `./build.sh <版本>` 即可打出完整包。已下载的依赖会一直留在 `build/` 里，
-之后重复构建不会重新下载。
+依赖不进发布包，所以打包前不需要为依赖做任何准备。只有想让 `build/<版本>/` 在本机能直接
+跑起来测试时，才需要进去跑一次 start 脚本把依赖下齐（约 130–290 MB，留在 `build/` 里不会重复下载）。
 
 ## 重新生成
 

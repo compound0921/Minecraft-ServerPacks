@@ -5,6 +5,7 @@
 #   ./build.sh                    构建全部包
 #   ./build.sh 1.20.1-Forge       只构建指定包
 #   ./build.sh --list             列出所有包
+#   ./build.sh --allow-custom-java  跳过 variables.txt 的 Java 自检（仅供本机测试）
 #
 # 产出的 zip 在 dist/ 下，直接拖到 GitHub Release 页面即可。
 #
@@ -23,8 +24,9 @@
 # 移到 build/，再补齐缺失的 eula.txt / server.properties / README.md。源目录里
 # 没有 variables.txt（也就是忘了拷 SPC 输出）会直接报错中止。
 #
-# 首次在一台新机器上构建某个版本前，需要先跑一次 start 脚本让它把
-# libraries/ 等依赖下载齐，否则打出来的包不含依赖（下面会警告）。
+# 发布包是轻量的：libraries/ versions/ .fabric/ server.jar 这些由 start 脚本
+# 在玩家首次启动时自动下载，tools/zip.py 打包时会一律排除。build/ 里有没有
+# 下过依赖不影响产物，只影响你能不能在本机直接把 build/<包名>/ 跑起来测试。
 
 set -euo pipefail
 
@@ -99,6 +101,15 @@ EOF
     echo "    补入 README.md（按 variables.txt 生成）"
   fi
 }
+
+# 前置开关。用 while 而不是只看 $1，这样开关和包名可以任意先后。
+ALLOW_CUSTOM_JAVA=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --allow-custom-java) ALLOW_CUSTOM_JAVA=1; shift ;;
+    *) break ;;
+  esac
+done
 
 if [ "${1:-}" = "--list" ]; then
   pack_names
@@ -182,10 +193,26 @@ while IFS= read -r name; do
     exit 1
   fi
 
-  # 4. full 包自检：没有 libraries/ 说明依赖还没下载过
-  if [ ! -d "$out/libraries" ]; then
-    echo "    警告: build/$name 里没有 libraries/，打出的包不含依赖。" >&2
-    echo "          请先在 build/$name 里跑一次 start 脚本把依赖下载齐。" >&2
+  # 4. variables.txt 自检：不能带本机专属的 Java 路径。
+  #    这种包在别人机器上直接起不来 —— 路径不存在，而自动装 Java 的兜底又正好被
+  #    SKIP_JAVA_CHECK=true 关掉了，玩家只能自己去翻 variables.txt 才知道。
+  #    单看 zip 文件名完全看不出来，所以只能在这一步拦。variables.txt 不进版本控制，
+  #    SPC 每次重新生成都写回 JAVA="java"，光靠 README 提醒拦不住（26.3 那次就是）。
+  if [ "$ALLOW_CUSTOM_JAVA" -eq 0 ]; then
+    jv="$(sed -n 's/^JAVA="\(.*\)"$/\1/p' "$src/variables.txt" | head -1)"
+    sjc="$(sed -n 's/^SKIP_JAVA_CHECK=\(.*\)$/\1/p' "$src/variables.txt" | head -1)"
+    if [ "$jv" != "java" ] || [ "$sjc" != "false" ]; then
+      echo "错误: packs/$name/variables.txt 带着本机专属的 Java 配置，打出的包别人跑不起来。" >&2
+      echo "        当前 JAVA=\"$jv\"  SKIP_JAVA_CHECK=${sjc:-未设置}" >&2
+      echo "      发布包要求 JAVA=\"java\" 且 SKIP_JAVA_CHECK=false，由 start 脚本自动装 Java。" >&2
+      echo "      确实要出一个只给本机用的包，就加 --allow-custom-java。" >&2
+      exit 1
+    fi
+  fi
+
+  # 4b. build/ 里下过的依赖不会进包（zip.py 排除了），提一句免得以为漏打了
+  if [ -d "$out/libraries" ] || [ -d "$out/.fabric" ] || [ -d "$out/versions" ]; then
+    echo "    build/$name 里有本机下过的依赖，打包时已排除（发布包不含依赖）。"
   fi
 
   # 5. 打包（Windows 终端默认 GBK，强制 UTF-8 免乱码）。
