@@ -48,7 +48,8 @@ Java 版本必须和该包要求的版本一致（两包不同，见各自的 RE
 ```
 shared/                    两包共用的启动脚本（ServerPackCreator 生成的 start.* / install_java.*）
 shared/defaults/           补齐用的默认文件：eula.txt、server.properties
-packs/<版本>/               该版本特有的源文件：variables.txt、server.properties、config/、mods/、world/ ……
+packs/<版本>/               该版本特有的源文件。仓库只跟踪 variables.txt，
+                            其余（SPC 输出、build.sh 补出的默认文件）由 .gitignore 排除
 build/<版本>/               组装出的可运行服务端目录，含 libraries/ 等依赖（不进版本控制，可直接跑）
 dist/                      打包好的 zip（不进版本控制）
 build.sh                   整理源目录 + 组装 + 打包
@@ -56,13 +57,19 @@ tools/import.py            把 ServerPackCreator 的原始输出整理成精简�
 tools/zip.py               压缩辅助（Git for Windows 自带 bash 但没有 zip 命令）
 ```
 
-`build/` 和 `dist/` 都在 `.gitignore` 里，仓库只跟踪 `packs/` 与 `shared/` 下的源文件。
+`build/`、`dist/`，以及 `packs/<版本>/` 下除 `variables.txt` 外的内容都在 `.gitignore` 里。
+仓库真正跟踪的只有 `shared/` 和两个 `variables.txt`。
+
+`packs/<版本>/` 里其余的东西都不必提交：`HOW-TO-RUN.md`、`config/`、`mods/`、`world/` 等是
+ServerPackCreator 的输出，`eula.txt`、`server.properties`、`README.md` 由 `build.sh` 运行时从
+`shared/defaults/` 补出来，都能重新生成。**`variables.txt` 是例外**——它也是 SPC 的产物，
+但 `fill_defaults` 不补它，删了就构建不了（`build.sh` 会直接报错），所以必须留在仓库里。
 
 ## 为什么不把库文件放进仓库
 
 `libraries/`、`versions/`、`.fabric/`、`server.jar` 等加起来约 290 MB，但**全部是 start 脚本运行时从
 Mojang / Forge / Fabric 官方源自动下载的**，属于构建产物。把它们提交进 git 只会让仓库膨胀到几百 MB、
-拖慢每次 push 和 clone，并不增加任何信息。仓库里真正需要维护的内容只有约 0.3 MB。
+拖慢每次 push 和 clone，并不增加任何信息。仓库里真正需要维护的内容只有几十 KB。
 
 ## 构建
 
